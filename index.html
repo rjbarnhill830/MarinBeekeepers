@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hivetracks · Marin Beekeepers</title>
+  <meta name="description" content="Hive records for Marin Beekeepers members: inspections, mite counts, treatments, feedings and harvests.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐝</text></svg>">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="topbar" id="topbar" hidden>
+    <a class="brand" href="#/">🐝 <span>Hivetracks</span></a>
+    <nav id="nav">
+      <a href="#/">My hives</a>
+      <a href="#/apiaries">Apiaries</a>
+      <a href="#/club">Club</a>
+      <a href="#/admin" id="nav-admin" hidden>Members</a>
+      <a href="#/account">Account</a>
+    </nav>
+  </header>
+
+  <main id="app" aria-live="polite">
+    <p class="muted center">Loading…</p>
+  </main>
+
+  <dialog id="dialog">
+    <form method="dialog" id="dialog-form" novalidate>
+      <h2 id="dialog-title"></h2>
+      <div id="dialog-body"></div>
+      <p class="error" id="dialog-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button type="button" class="danger" id="dialog-delete" hidden>Delete</button>
+        <span class="spacer"></span>
+        <button type="button" class="secondary" id="dialog-cancel">Cancel</button>
+        <button type="submit" id="dialog-save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" role="status" hidden></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
