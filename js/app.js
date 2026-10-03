@@ -234,7 +234,7 @@ function authView(mode = 'signin', message = '') {
   const titles = { signin: 'Sign in', signup: 'Join', forgot: 'Reset password' };
   render(`
     <section class="auth card">
-      <h1>🐝 Hivetracks</h1>
+      <h1>🐝 Marin Hive Tracker</h1>
       <p class="muted">Hive records for ${esc(CLUB_NAME)} members.</p>
       <h2>${titles[mode]}</h2>
       ${message ? `<p class="notice">${esc(message)}</p>` : ''}
@@ -701,7 +701,7 @@ async function accountView() {
     const rows = await must(sb.from(t).select(select).eq('owner_id', uid()));
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv(rows)], { type: 'text/csv' }));
-    a.download = `hivetracks-${t}-${todayISO()}.csv`;
+    a.download = `marin-hive-tracker-${t}-${todayISO()}.csv`;
     a.click();
     URL.revokeObjectURL(a.href);
   });

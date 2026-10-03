@@ -1,4 +1,4 @@
-# Hivetracks for Marin Beekeepers
+# Marin Hive Tracker
 
 A shared hive-records site for club members. Each member logs their own apiaries, hives,
 inspections, **mite counts**, treatments, feedings and harvests from a phone or computer.
@@ -52,7 +52,7 @@ Without this, the links in sign-up confirmation and password-reset emails point 
    other members and make other people admins. You won't need SQL again.
 
 ### 5. Link it from the club website
-Add a link to the site URL on the Marin Beekeepers webpage, e.g. "Member hive records (Hivetracks)".
+Add a link to the site URL on the Marin Beekeepers webpage, e.g. "Marin Hive Tracker (member hive records)".
 New members sign up there, and an admin approves them from the **Members** tab.
 
 ## Things to know about the free Supabase plan

@@ -1,4 +1,4 @@
--- Hivetracks for Marin Beekeepers — database schema
+-- Marin Hive Tracker — database schema
 --
 -- Run this whole file once in the Supabase dashboard: SQL Editor → New query → paste → Run.
 -- It is safe to re-run; it drops and recreates policies, functions and triggers.
