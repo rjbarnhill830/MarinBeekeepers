@@ -422,7 +422,7 @@ async function hiveView(id, filter = 'all') {
     <div class="page-head">
       <div>
         <h1>${esc(hive.name)} ${hive.status !== 'active' ? `<span class="badge muted-badge">${esc(hive.status)}</span>` : ''}</h1>
-        <p class="muted">${[hive.apiaries?.name, hive.hive_type,
+        <p class="muted">${[hive.apiaries?.name, hive.hive_type, hive.bee_species,
           hive.queen_year && `${hive.queen_year} queen${hive.queen_source ? ` (${hive.queen_source})` : ''}`,
           hive.established_on && `since ${fmtDate(hive.established_on)}`,
           honey && `${Math.round(honey * 10) / 10} lbs harvested`].filter(Boolean).map(esc).join(' · ')}</p>
@@ -588,6 +588,7 @@ async function clubView(year = new Date().getFullYear()) {
     <div class="grid two">
       <section class="card"><h2>Active hives by town</h2>${breakdown(s.hives_by_town)}</section>
       <section class="card"><h2>Active hives by type</h2>${breakdown(s.hives_by_type)}</section>
+      <section class="card"><h2>Active hives by bee species</h2>${breakdown(s.hives_by_species ?? {})}</section>
     </div>
   `);
   on('#year', 'change', e => clubView(Number(e.target.value)));

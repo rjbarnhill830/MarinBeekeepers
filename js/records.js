@@ -4,6 +4,11 @@
 const yesNo = { type: 'bool' };
 
 export const HIVE_TYPES = ['Langstroth', 'Top bar', 'Warré', 'Flow hive', 'Nuc', 'Other'];
+// Suggestions only; members can type anything (e.g. a specific breeder's line).
+export const BEE_SPECIES = [
+  'Italian', 'Carniolan', 'Russian', 'Buckfast', 'Saskatraz', 'Caucasian',
+  'Local survivor / feral', 'Mixed / unknown',
+];
 export const HIVE_STATUSES = ['active', 'dead', 'swarmed', 'combined', 'sold'];
 
 // Mite thresholds (mites per 100 bees from a wash, roll or CO2 sample).
@@ -25,6 +30,8 @@ export function hiveFields(apiaries) {
     { name: 'apiary_id', label: 'Apiary', type: 'select',
       options: [['', '— none —'], ...apiaries.map(a => [a.id, a.name])] },
     { name: 'hive_type', label: 'Hive type', type: 'select', options: HIVE_TYPES, default: 'Langstroth' },
+    { name: 'bee_species', label: 'Bee species / race', list: BEE_SPECIES,
+      placeholder: 'e.g. Italian, Carniolan' },
     { name: 'status', label: 'Status', type: 'select', options: HIVE_STATUSES, default: 'active' },
     { name: 'established_on', label: 'Established', type: 'date' },
     { name: 'ended_on', label: 'Lost / closed on', type: 'date',

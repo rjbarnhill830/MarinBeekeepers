@@ -39,6 +39,7 @@ create table if not exists public.hives (
   apiary_id       uuid references public.apiaries (id) on delete set null,
   name            text not null,
   hive_type       text not null default 'Langstroth',
+  bee_species     text,         -- e.g. Italian, Carniolan, local survivor stock
   status          text not null default 'active'
                   check (status in ('active', 'dead', 'swarmed', 'combined', 'sold')),
   established_on  date,
@@ -119,6 +120,9 @@ create table if not exists public.harvests (
   notes         text,
   created_at    timestamptz not null default now()
 );
+
+-- Columns added after the first release (create table above won't add them to existing tables).
+alter table public.hives add column if not exists bee_species text;
 
 create index if not exists apiaries_owner_idx    on public.apiaries (owner_id);
 create index if not exists hives_owner_idx       on public.hives (owner_id);
@@ -293,6 +297,10 @@ begin
     'hives_by_type', (
       select coalesce(json_object_agg(hive_type, n), '{}'::json)
       from (select hive_type, count(*) n from hives where status = 'active' group by hive_type) s),
+    'hives_by_species', (
+      select coalesce(json_object_agg(species, n), '{}'::json)
+      from (select coalesce(nullif(trim(bee_species), ''), 'Unspecified') species, count(*) n
+            from hives where status = 'active' group by 1) s),
     'hives_by_town', (
       select coalesce(json_object_agg(town, n), '{}'::json)
       from (select coalesce(nullif(trim(a.town), ''), 'Unspecified') town, count(*) n
