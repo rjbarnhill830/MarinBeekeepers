@@ -9,6 +9,9 @@ export const BEE_SPECIES = [
   'Italian', 'Carniolan', 'Russian', 'Buckfast', 'Saskatraz', 'Caucasian',
   'Local survivor / feral', 'Mixed / unknown',
 ];
+export const CONDITIONS = [
+  'Clear', 'Mostly clear', 'Partly cloudy', 'Overcast', 'Fog', 'Drizzle', 'Light rain', 'Rain', 'Windy',
+];
 export const HIVE_STATUSES = ['active', 'dead', 'swarmed', 'combined', 'sold'];
 
 // Mite thresholds (mites per 100 bees from a wash, roll or CO2 sample).
@@ -49,6 +52,11 @@ export const RECORD_TYPES = {
     dateField: 'inspected_on',
     fields: [
       { name: 'inspected_on', label: 'Date', type: 'date', required: true, default: 'today' },
+      { name: 'inspected_at', label: 'Time', type: 'time', default: 'now' },
+      { name: 'temp_f', label: 'Temperature (°F)', type: 'number', step: 'any' },
+      { name: 'conditions', label: 'Conditions', list: CONDITIONS },
+      { name: 'wind_mph', label: 'Wind (mph)', type: 'number', min: 0, step: 'any' },
+      { name: 'humidity', label: 'Humidity (%)', type: 'number', min: 0, max: 100 },
       { name: 'queen_seen', label: 'Queen seen', ...yesNo },
       { name: 'eggs_seen', label: 'Eggs seen', ...yesNo },
       { name: 'queen_cells', label: 'Queen cells', ...yesNo },
@@ -74,6 +82,9 @@ export const RECORD_TYPES = {
         .filter(([, n]) => n != null).map(([k, n]) => `${n} ${k}`);
       if (frames.length) bits.push(`frames: ${frames.join(', ')}`);
       if (r.disease_signs) bits.push(`⚠ ${r.disease_signs}`);
+      const weather = [r.temp_f != null && `${Number(r.temp_f)}°F`, r.conditions?.toLowerCase(),
+                       r.wind_mph != null && `wind ${Number(r.wind_mph)} mph`].filter(Boolean).join(', ');
+      if (weather) bits.push(weather);
       return bits.join(' · ');
     },
   },
@@ -182,6 +193,17 @@ export function daysSince(iso) {
   const then = Date.UTC(y, m - 1, d);
   const [ty, tm, td] = todayISO().split('-').map(Number);
   return Math.round((Date.UTC(ty, tm - 1, td) - then) / 86400000);
+}
+
+export function nowHHMM() {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+export function fmtTime(t) {
+  if (!t) return '';
+  const [h, m] = t.split(':').map(Number);
+  return new Date(2000, 0, 1, h, m).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
 
 export function fmtDate(iso) {

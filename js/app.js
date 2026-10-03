@@ -2,8 +2,9 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY, CLUB_NAME } from './config.js';
 import {
   APIARY_FIELDS, RECORD_TYPES, MITE_TREAT, hiveFields, hiveAlerts, miteRate,
-  fmtDate, todayISO,
+  fmtDate, fmtTime, nowHHMM, todayISO,
 } from './records.js';
+import { weatherAt } from './weather.js';
 
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const app = document.getElementById('app');
@@ -77,7 +78,8 @@ function fieldHTML(f, value) {
       return `<option value="${esc(v)}"${String(v) === cur ? ' selected' : ''}>${esc(label)}</option>`;
     }).join('')}</select>`;
   } else {
-    const type = f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text';
+    const type = ['number', 'date', 'time'].includes(f.type) ? f.type : 'text';
+    if (type === 'time' && value) value = String(value).slice(0, 5);   // DB returns HH:MM:SS
     const attrs = [
       f.min != null && `min="${f.min}"`, f.max != null && `max="${f.max}"`,
       f.step && `step="${f.step}"`, f.placeholder && `placeholder="${esc(f.placeholder)}"`,
@@ -108,7 +110,7 @@ function readForm(fields) {
  * Show a form dialog. onSave(values) persists and may throw to show an error;
  * validate(values) may return an error string (and may normalise values).
  */
-function openForm({ title, fields, values = {}, validate, onSave, onDelete, saveLabel = 'Save', visibility }) {
+function openForm({ title, fields, values = {}, validate, onSave, onDelete, saveLabel = 'Save', visibility, setup }) {
   document.getElementById('dialog-title').textContent = title;
   document.getElementById('dialog-save').textContent = saveLabel;
   const errEl = document.getElementById('dialog-error');
@@ -116,7 +118,7 @@ function openForm({ title, fields, values = {}, validate, onSave, onDelete, save
   const body = document.getElementById('dialog-body');
   body.innerHTML = fields.map(f => {
     let v = values[f.name];
-    if (v === undefined) v = f.default === 'today' ? todayISO() : f.default ?? '';
+    if (v === undefined) v = f.default === 'today' ? todayISO() : f.default === 'now' ? nowHHMM() : f.default ?? '';
     return fieldHTML(f, v);
   }).join('');
 
@@ -152,6 +154,55 @@ function openForm({ title, fields, values = {}, validate, onSave, onDelete, save
   };
   dialog.showModal();
   body.querySelector('input, select, textarea')?.focus();
+  setup?.(body);
+}
+
+// Inspection form: a "Fill in weather" button, run automatically for new inspections and
+// again when the date/time changes, unless the member has typed their own weather.
+const WEATHER_FIELDS = ['temp_f', 'conditions', 'wind_mph', 'humidity'];
+
+function wireWeather(body, town, isNew) {
+  const input = name => body.querySelector(`[name="${name}"]`);
+  const row = document.createElement('div');
+  row.className = 'weather-row';
+  row.innerHTML = `<button type="button" class="secondary small">☁ Fill in weather</button>
+    <small class="muted" role="status"></small>`;
+  body.querySelector('[data-field="inspected_at"]').after(row);
+  const [btn, status] = row.children;
+  const current = () => WEATHER_FIELDS.map(n => input(n).value).join('|');
+  let autoFilled = isNew ? current() : null;   // weather values we put there ourselves
+  let seq = 0;
+
+  async function fill() {
+    const date = input('inspected_on').value;
+    if (!date) { status.textContent = 'Pick a date first.'; return; }
+    const mine = ++seq;
+    btn.disabled = true;
+    status.textContent = 'Looking up weather…';
+    try {
+      const w = await weatherAt(town, date, input('inspected_at').value);
+      if (mine !== seq) return;
+      for (const n of WEATHER_FIELDS) input(n).value = w[n] ?? '';
+      autoFilled = current();
+      const when = input('inspected_at').value ? fmtTime(input('inspected_at').value) : 'midday';
+      status.textContent = `Weather for ${w.place} at ${when} (Open-Meteo). You can edit it.`;
+    } catch (e) {
+      if (mine === seq) status.textContent = e.message;
+    } finally {
+      if (mine === seq) btn.disabled = false;
+    }
+  }
+
+  btn.addEventListener('click', fill);
+  let timer;
+  for (const n of ['inspected_on', 'inspected_at']) {
+    input(n).addEventListener('change', () => {
+      if (autoFilled === null || current() !== autoFilled) return;   // member's own values: leave alone
+      clearTimeout(timer);
+      timer = setTimeout(fill, 400);
+    });
+  }
+  if (isNew) fill();
 }
 
 // Mite form: show sample size or board days depending on method.
@@ -160,7 +211,7 @@ const miteVisibility = v => ({
   board_days: v.method === 'sticky board',
 });
 
-function editRecord(table, hiveId, row, after) {
+function editRecord(table, hive, row, after) {
   const def = RECORD_TYPES[table];
   openForm({
     title: row ? `Edit ${def.label.toLowerCase()}` : `New ${def.label.toLowerCase()}`,
@@ -168,9 +219,10 @@ function editRecord(table, hiveId, row, after) {
     values: row ?? {},
     validate: def.validate,
     visibility: table === 'mite_counts' ? miteVisibility : undefined,
+    setup: table === 'inspections' ? body => wireWeather(body, hive.apiaries?.town, !row) : undefined,
     onSave: async v => {
       if (row) await must(sb.from(table).update(v).eq('id', row.id));
-      else await must(sb.from(table).insert({ ...v, hive_id: hiveId }));
+      else await must(sb.from(table).insert({ ...v, hive_id: hive.id }));
       toast(`${def.label} saved`);
       after();
     },
@@ -331,7 +383,8 @@ async function dashboardView() {
   const [hives, inspections, mites, openTreatments] = await Promise.all([
     must(sb.from('hives').select('*, apiaries(name)').eq('owner_id', me).order('name')),
     must(sb.from('inspections').select('hive_id, inspected_on, queen_seen, eggs_seen, queen_cells, created_at')
-      .eq('owner_id', me).order('inspected_on', { ascending: false }).order('created_at', { ascending: false })),
+      .eq('owner_id', me).order('inspected_on', { ascending: false })
+      .order('inspected_at', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false })),
     must(sb.from('mite_counts').select('hive_id, counted_on, method, mites, bees_sampled, board_days, created_at')
       .eq('owner_id', me).order('counted_on', { ascending: false }).order('created_at', { ascending: false })),
     must(sb.from('treatments').select('hive_id, product, started_on')
@@ -397,7 +450,7 @@ async function hiveView(id, filter = 'all') {
   const me = uid();
   const tables = Object.keys(RECORD_TYPES);
   const [hives, ...records] = await Promise.all([
-    must(sb.from('hives').select('*, apiaries(name)').eq('id', id).eq('owner_id', me)),
+    must(sb.from('hives').select('*, apiaries(name, town)').eq('id', id).eq('owner_id', me)),
     ...tables.map(t => must(sb.from(t).select('*').eq('hive_id', id)
       .order(RECORD_TYPES[t].dateField, { ascending: false }).order('created_at', { ascending: false }))),
   ]);
@@ -407,7 +460,9 @@ async function hiveView(id, filter = 'all') {
   const byTable = Object.fromEntries(tables.map((t, i) => [t, records[i]]));
   const timeline = tables.flatMap(t => byTable[t].map(r => ({ t, r, date: r[RECORD_TYPES[t].dateField] })))
     .filter(e => filter === 'all' || e.t === filter)
-    .sort((a, b) => b.date.localeCompare(a.date) || b.r.created_at.localeCompare(a.r.created_at));
+    .sort((a, b) => b.date.localeCompare(a.date)
+      || (b.r.inspected_at ?? '').localeCompare(a.r.inspected_at ?? '')
+      || b.r.created_at.localeCompare(a.r.created_at));
 
   const alerts = hiveAlerts(hive, {
     lastInspection: byTable.inspections[0],
@@ -441,7 +496,7 @@ async function hiveView(id, filter = 'all') {
     </div>
     ${timeline.length ? `<ol class="timeline">${timeline.map(({ t, r, date }, i) => `
       <li><button class="entry" data-i="${i}">
-        <span class="entry-date">${fmtDate(date)}</span>
+        <span class="entry-date">${fmtDate(date)}${r.inspected_at ? `<br>${fmtTime(r.inspected_at)}` : ''}</span>
         <span class="tag tag-${t}">${RECORD_TYPES[t].label}</span>
         <span class="entry-summary">${esc(RECORD_TYPES[t].summary(r)) || '<span class="muted">No details</span>'}
           ${r.notes ? `<span class="entry-notes">${esc(r.notes)}</span>` : ''}</span>
@@ -451,11 +506,11 @@ async function hiveView(id, filter = 'all') {
 
   const refresh = () => hiveView(id, filter);
   on('#edit-hive', 'click', () => editHive(hive, refresh));
-  on('[data-add]', 'click', e => editRecord(e.currentTarget.dataset.add, id, null, refresh));
+  on('[data-add]', 'click', e => editRecord(e.currentTarget.dataset.add, hive, null, refresh));
   on('[data-filter]', 'click', e => hiveView(id, e.currentTarget.dataset.filter));
   on('.entry', 'click', e => {
     const { t, r } = timeline[e.currentTarget.dataset.i];
-    editRecord(t, id, r, refresh);
+    editRecord(t, hive, r, refresh);
   });
 }
 

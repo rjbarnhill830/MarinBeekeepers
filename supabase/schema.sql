@@ -55,6 +55,11 @@ create table if not exists public.inspections (
   owner_id        uuid not null default auth.uid() references public.profiles (id) on delete cascade,
   hive_id         uuid not null references public.hives (id) on delete cascade,
   inspected_on    date not null default current_date,
+  inspected_at    time,         -- time of day (local)
+  temp_f          numeric(5, 1),
+  humidity        int check (humidity between 0 and 100),
+  wind_mph        numeric(5, 1) check (wind_mph >= 0),
+  conditions      text,         -- e.g. "Partly cloudy"; auto-filled from Open-Meteo
   queen_seen      boolean,
   eggs_seen       boolean,
   queen_cells     boolean,
@@ -123,6 +128,11 @@ create table if not exists public.harvests (
 
 -- Columns added after the first release (create table above won't add them to existing tables).
 alter table public.hives add column if not exists bee_species text;
+alter table public.inspections add column if not exists inspected_at time;
+alter table public.inspections add column if not exists temp_f numeric(5, 1);
+alter table public.inspections add column if not exists humidity int check (humidity between 0 and 100);
+alter table public.inspections add column if not exists wind_mph numeric(5, 1) check (wind_mph >= 0);
+alter table public.inspections add column if not exists conditions text;
 
 create index if not exists apiaries_owner_idx    on public.apiaries (owner_id);
 create index if not exists hives_owner_idx       on public.hives (owner_id);

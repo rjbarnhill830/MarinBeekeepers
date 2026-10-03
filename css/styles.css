@@ -237,6 +237,7 @@ dialog::backdrop { background: rgb(0 0 0 / 0.45); }
 dialog form { padding: 1.1rem 1.2rem; display: flex; flex-direction: column; gap: .75rem; }
 #dialog-body { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
 #dialog-body .field:has(textarea) { grid-column: 1 / -1; }
+.weather-row { grid-column: 1 / -1; display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin-top: -.25rem; }
 .dialog-actions { display: flex; gap: .5rem; align-items: center; position: sticky; bottom: 0; background: var(--surface); padding-top: .25rem; }
 .spacer { flex: 1; }
 

@@ -12,6 +12,11 @@ The club gets combined statistics without anyone's hive locations or names being
 - **Reminders** on each hive: inspection due, mite check due, mites over threshold,
   no queen/eggs seen, queen cells, treatment in progress.
 - **Export**: members can download their records as CSV spreadsheets.
+- **Weather**: inspections record the time of day, and the temperature, conditions, wind and
+  humidity fill in automatically from [Open-Meteo](https://open-meteo.com). It's free for
+  non-commercial use and needs no API key or setup. Weather is looked up by the apiary's
+  **town** (or central Marin if no town is set), so exact locations are never sent anywhere.
+  Members can edit the values or type their own.
 
 It's a static website (plain HTML/CSS/JavaScript, no build step) backed by
 [Supabase](https://supabase.com), which provides the database and member logins.
