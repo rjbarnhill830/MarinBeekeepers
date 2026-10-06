@@ -450,12 +450,18 @@ async function hiveView(id, filter = 'all') {
   const me = uid();
   const tables = Object.keys(RECORD_TYPES);
   const [hives, ...records] = await Promise.all([
-    must(sb.from('hives').select('*, apiaries(name, town)').eq('id', id).eq('owner_id', me)),
+    // No owner filter: row-level security returns the hive if it's ours, shared with us, or we're an admin.
+    must(sb.from('hives').select('*, apiaries(name, town)').eq('id', id)),
     ...tables.map(t => must(sb.from(t).select('*').eq('hive_id', id)
       .order(RECORD_TYPES[t].dateField, { ascending: false }).order('created_at', { ascending: false }))),
   ]);
   const hive = hives[0];
-  if (!hive) { render('<p>Hive not found. <a href="#/">Back to my hives</a></p>'); return; }
+  if (!hive) { render('<p>Hive not found, or its owner has stopped sharing it. <a href="#/">Back to my hives</a></p>'); return; }
+  const readOnly = hive.owner_id !== me;
+  state.viewingOther = readOnly;
+  setChrome(true);
+  // Someone else's hive: owner name and town come from the directory (we can't read their apiary).
+  const listing = readOnly ? (await must(sb.rpc('hive_directory'))).find(h => h.id === id) : null;
 
   const byTable = Object.fromEntries(tables.map((t, i) => [t, records[i]]));
   const timeline = tables.flatMap(t => byTable[t].map(r => ({ t, r, date: r[RECORD_TYPES[t].dateField] })))
@@ -473,45 +479,83 @@ async function hiveView(id, filter = 'all') {
   const honey = byTable.harvests.reduce((s, r) => s + Number(r.honey_lbs || 0), 0);
 
   render(`
-    <p><a href="#/">← My hives</a></p>
+    <p>${readOnly ? '<a href="#/hives">← Club hives</a>' : '<a href="#/">← My hives</a>'}</p>
+    ${readOnly ? `<p class="notice">You're viewing ${esc(listing?.owner_name ?? 'another member')}'s hive${
+      listing?.town ? ` in ${esc(listing.town)}` : ''}. Only they can make changes.</p>` : ''}
     <div class="page-head">
       <div>
         <h1>${esc(hive.name)} ${hive.status !== 'active' ? `<span class="badge muted-badge">${esc(hive.status)}</span>` : ''}</h1>
-        <p class="muted">${[hive.apiaries?.name, hive.hive_type, hive.bee_species,
+        <p class="muted">${[readOnly ? listing?.town : hive.apiaries?.name, hive.hive_type, hive.bee_species,
           hive.queen_year && `${hive.queen_year} queen${hive.queen_source ? ` (${hive.queen_source})` : ''}`,
           hive.established_on && `since ${fmtDate(hive.established_on)}`,
           honey && `${Math.round(honey * 10) / 10} lbs harvested`].filter(Boolean).map(esc).join(' · ')}</p>
       </div>
-      <button class="secondary" id="edit-hive">Edit hive</button>
+      ${readOnly ? '' : '<button class="secondary" id="edit-hive">Edit hive</button>'}
     </div>
     ${hive.notes ? `<p class="hive-notes">${esc(hive.notes)}</p>` : ''}
     ${alertList(alerts)}
-    <div class="quick-add">
+    ${readOnly ? '' : `<div class="quick-add">
       ${tables.map(t => `<button data-add="${t}">+ ${RECORD_TYPES[t].label}</button>`).join('')}
-    </div>
+    </div>`}
     <div class="tabs" role="tablist">
       ${[['all', 'All'], ...tables.map(t => [t, RECORD_TYPES[t].plural])].map(([k, label]) =>
         `<button role="tab" class="tab" aria-selected="${k === filter}" data-filter="${k}">${label}${
           k !== 'all' ? ` <span class="count">${byTable[k].length}</span>` : ''}</button>`).join('')}
     </div>
     ${timeline.length ? `<ol class="timeline">${timeline.map(({ t, r, date }, i) => `
-      <li><button class="entry" data-i="${i}">
+      <li><${readOnly ? 'div' : 'button'} class="entry" data-i="${i}">
         <span class="entry-date">${fmtDate(date)}${r.inspected_at ? `<br>${fmtTime(r.inspected_at)}` : ''}</span>
         <span class="tag tag-${t}">${RECORD_TYPES[t].label}</span>
         <span class="entry-summary">${esc(RECORD_TYPES[t].summary(r)) || '<span class="muted">No details</span>'}
           ${r.notes ? `<span class="entry-notes">${esc(r.notes)}</span>` : ''}</span>
-      </button></li>`).join('')}</ol>`
-      : `<p class="muted">No records yet. Use the buttons above to log an inspection, mite count and more.</p>`}
+      </${readOnly ? 'div' : 'button'}></li>`).join('')}</ol>`
+      : `<p class="muted">No records yet.${readOnly ? '' : ' Use the buttons above to log an inspection, mite count and more.'}</p>`}
   `);
 
   const refresh = () => hiveView(id, filter);
   on('#edit-hive', 'click', () => editHive(hive, refresh));
   on('[data-add]', 'click', e => editRecord(e.currentTarget.dataset.add, hive, null, refresh));
   on('[data-filter]', 'click', e => hiveView(id, e.currentTarget.dataset.filter));
+  if (readOnly) return;
   on('.entry', 'click', e => {
     const { t, r } = timeline[e.currentTarget.dataset.i];
     editRecord(t, hive, r, refresh);
   });
+}
+
+async function clubHivesView() {
+  const list = await must(sb.rpc('hive_directory'));
+  const admin = isAdmin();
+  const byOwner = new Map();
+  for (const h of list) {
+    if (!byOwner.has(h.owner_id)) byOwner.set(h.owner_id, { name: h.owner_name, shared: h.shared, hives: [] });
+    byOwner.get(h.owner_id).hives.push(h);
+  }
+  const card = h => `<a class="card hive-card" href="#/hive/${h.id}">
+    <div class="hive-head"><h3>${esc(h.name)}</h3><span class="badge${h.status === 'active' ? '' : ' muted-badge'}">${
+      esc(h.status === 'active' ? h.hive_type : h.status)}</span></div>
+    <p class="muted card-sub">${[h.town, h.bee_species].filter(Boolean).map(esc).join(' · ')}</p>
+    <dl class="facts">
+      <div><dt>Last inspection</dt><dd>${h.last_inspection ? fmtDate(h.last_inspection) : '—'}</dd></div>
+      <div><dt>Last mite count</dt><dd>${h.last_mite_on ? `${Number(h.last_mite_rate)}${
+        h.last_mite_method === 'sticky board' ? '/day' : '%'} · ${fmtDate(h.last_mite_on)}` : '—'}</dd></div>
+    </dl>
+  </a>`;
+  render(`
+    <div class="page-head"><h1>Club hives</h1></div>
+    <p class="muted">${admin
+      ? "As a club admin you can view every member's hives. Members only see hives their owners have chosen to share."
+      : 'Hives other members have chosen to share. Everything here is view-only; apiary locations are never shown, only the town.'}
+      ${state.profile.share_hives ? 'Your hives are shared.' : 'Your hives are not shared.'}
+      <a href="#/account">Change in Account</a>.</p>
+    ${!list.length ? `<div class="card empty"><p>${admin ? 'No other members have hives yet.'
+      : 'No one is sharing their hives yet.'}</p></div>` : ''}
+    ${[...byOwner.values()].map(o => `
+      <section>
+        <h2 class="group-title">${esc(o.name)}${admin && !o.shared ? ' <span class="badge muted-badge">not shared</span>' : ''}</h2>
+        <div class="grid">${o.hives.map(card).join('')}</div>
+      </section>`).join('')}
+  `);
 }
 
 async function apiariesView() {
@@ -721,6 +765,14 @@ async function accountView() {
       </form>
     </section>
     <section class="card">
+      <h2>Sharing</h2>
+      <label class="check"><input type="checkbox" id="share-hives" ${p.share_hives ? 'checked' : ''}>
+        Let other members view my hives and records</label>
+      <p class="muted">They'll see your name, your hives' town, and your inspections, mite counts, treatments,
+        feedings and harvests. They can't change anything, and your apiary locations stay private.
+        Club admins can always view your hives.</p>
+    </section>
+    <section class="card">
       <h2>Download my records</h2>
       <p class="muted">Spreadsheet (CSV) files of everything you've logged.</p>
       <div class="row wrap">
@@ -751,6 +803,14 @@ async function accountView() {
     const { error } = await sb.auth.updateUser({ password: new FormData(e.target).get('password') });
     if (error) alert(error.message); else { e.target.reset(); toast('Password updated'); }
   });
+  app.querySelector('#share-hives').addEventListener('change', async e => {
+    const share_hives = e.target.checked;
+    try {
+      await must(sb.from('profiles').update({ share_hives }).eq('id', uid()));
+      state.profile.share_hives = share_hives;
+      toast(share_hives ? 'Your hives are now shared with members' : 'Your hives are now private');
+    } catch (ex) { e.target.checked = !share_hives; alert(ex.message); }
+  });
   on('[data-export]', 'click', async e => {
     const t = e.currentTarget.dataset.export;
     const select = t === 'apiaries' ? '*' : t === 'hives' ? '*, apiaries(name)' : '*, hives(name)';
@@ -780,7 +840,8 @@ function setChrome(signedIn) {
   const path = location.hash.split('/')[1] || '';
   document.querySelectorAll('#nav a').forEach(a => {
     const target = a.getAttribute('href').split('/')[1] || '';
-    a.classList.toggle('active', target === path || (target === '' && path === 'hive'));
+    a.classList.toggle('active', target === path || (target === '' && path === 'hive' && !state.viewingOther)
+      || (target === 'hives' && path === 'hive' && state.viewingOther));
   });
 }
 
@@ -793,6 +854,7 @@ async function route() {
   try {
     if (page === 'hive' && id) await hiveView(id);
     else if (page === 'apiaries') await apiariesView();
+    else if (page === 'hives') await clubHivesView();
     else if (page === 'club') await clubView();
     else if (page === 'admin') await adminView();
     else if (page === 'account') await accountView();

@@ -156,6 +156,11 @@ input, select, textarea {
 label.inline select { width: auto; margin: 0; }
 textarea { resize: vertical; }
 .req { color: var(--bad); }
+label.check { display: flex; align-items: center; gap: .5rem; font-size: 1rem; }
+label.check input { width: 1.2rem; height: 1.2rem; min-height: 0; margin: 0; flex: none; }
+.card-sub { margin: .15rem 0 0; font-size: .88rem; }
+div.entry { cursor: default; }
+div.entry:hover { border-color: var(--border); }
 .field small { display: block; margin-top: .2rem; font-weight: normal; }
 
 /* Auth */
@@ -250,8 +255,8 @@ dialog form { padding: 1.1rem 1.2rem; display: flex; flex-direction: column; gap
 @media (max-width: 600px) {
   h1 { font-size: 1.35rem; }
   .topbar { gap: .4rem; }
-  nav { margin-left: 0; width: 100%; justify-content: space-between; }
-  nav a { padding: .3rem .4rem; font-size: .92rem; }
+  nav { margin-left: -.35rem; width: calc(100% + .35rem); gap: .1rem .05rem; }
+  nav a { padding: .3rem .35rem; font-size: .9rem; }
   #dialog-body { grid-template-columns: 1fr; }
   .entry { grid-template-columns: 1fr auto; }
   .entry-date { grid-row: 1; }

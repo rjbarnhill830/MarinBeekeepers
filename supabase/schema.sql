@@ -6,6 +6,8 @@
 -- Privacy model:
 --   * Anyone can sign up, but a new account is "pending" until an admin approves it.
 --   * Approved members can read and write only their own apiaries, hives and records.
+--   * A member can opt in (profiles.share_hives) to let other approved members *view*
+--     their hives and records. Apiary locations are never shared — only the town.
 --   * Admins can read every member's records (but not edit them) and approve members.
 --   * Club-wide totals are exposed only through club_stats(), which never returns
 --     names, locations or individual records.
@@ -20,6 +22,7 @@ create table if not exists public.profiles (
   full_name   text,
   role        text not null default 'member' check (role in ('member', 'admin')),
   approved    boolean not null default false,
+  share_hives boolean not null default false,  -- opt in: other members may view my hives
   created_at  timestamptz not null default now()
 );
 
@@ -127,6 +130,7 @@ create table if not exists public.harvests (
 );
 
 -- Columns added after the first release (create table above won't add them to existing tables).
+alter table public.profiles add column if not exists share_hives boolean not null default false;
 alter table public.hives add column if not exists bee_species text;
 alter table public.inspections add column if not exists inspected_at time;
 alter table public.inspections add column if not exists temp_f numeric(5, 1);
@@ -158,6 +162,14 @@ language sql stable security definer set search_path = public as $$
   select coalesce(
     (select approved and role = 'admin' from public.profiles where id = auth.uid()),
     false);
+$$;
+
+-- May the caller view this owner's hives and records?
+create or replace function public.can_view(owner uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select public.is_admin()
+      or (public.is_approved() and (owner = auth.uid()
+          or coalesce((select share_hives from public.profiles where id = owner), false)));
 $$;
 
 -- Mites per 100 bees for wash/roll/CO2; mites per day for sticky boards.
@@ -268,9 +280,17 @@ begin
                            'treatments', 'feedings', 'harvests'] loop
     execute format('alter table public.%I enable row level security', t);
 
+    -- Apiaries hold private locations, so they are never shared; hives and records are
+    -- visible to other members when the owner opts in.
     execute format('drop policy if exists "read own or admin" on public.%I', t);
-    execute format('create policy "read own or admin" on public.%I for select
-                    using ((owner_id = auth.uid() and public.is_approved()) or public.is_admin())', t);
+    execute format('drop policy if exists "read own, shared or admin" on public.%I', t);
+    if t = 'apiaries' then
+      execute format('create policy "read own or admin" on public.%I for select
+                      using ((owner_id = auth.uid() and public.is_approved()) or public.is_admin())', t);
+    else
+      execute format('create policy "read own, shared or admin" on public.%I for select
+                      using (public.can_view(owner_id))', t);
+    end if;
 
     execute format('drop policy if exists "insert own" on public.%I', t);
     execute format('create policy "insert own" on public.%I for insert
@@ -286,6 +306,35 @@ begin
                     using (owner_id = auth.uid() and public.is_approved())', t);
   end loop;
 end $$;
+
+-- ---------------------------------------------------------------------------
+-- Club hives directory: other members' hives the caller may view (all, for admins),
+-- with the owner's name and the apiary's town but never its location.
+-- ---------------------------------------------------------------------------
+
+drop function if exists public.hive_directory();
+create function public.hive_directory()
+returns table (
+  id uuid, name text, hive_type text, bee_species text, status text,
+  owner_id uuid, owner_name text, shared boolean, town text,
+  last_inspection date, last_mite_rate numeric, last_mite_method text, last_mite_on date)
+language sql stable security definer set search_path = public as $$
+  select h.id, h.name, h.hive_type, h.bee_species, h.status,
+         h.owner_id, coalesce(nullif(p.full_name, ''), 'Member'), p.share_hives,
+         nullif(trim(a.town), ''),
+         (select max(i.inspected_on) from inspections i where i.hive_id = h.id),
+         m.rate, m.method, m.counted_on
+  from hives h
+  join profiles p on p.id = h.owner_id
+  left join apiaries a on a.id = h.apiary_id
+  left join lateral (
+    select mite_rate(mc) rate, mc.method, mc.counted_on from mite_counts mc
+    where mc.hive_id = h.id order by mc.counted_on desc, mc.created_at desc limit 1) m on true
+  where h.owner_id <> auth.uid()
+    and p.approved
+    and (public.is_admin() or (public.is_approved() and p.share_hives))
+  order by 7, h.name;
+$$;
 
 -- ---------------------------------------------------------------------------
 -- Club-wide statistics (aggregates only; no names or locations)
@@ -349,3 +398,5 @@ grant select, insert, update, delete on all tables in schema public to authentic
 grant execute on function public.club_stats(int) to authenticated;
 grant execute on function public.is_approved() to authenticated;
 grant execute on function public.is_admin() to authenticated;
+grant execute on function public.can_view(uuid) to authenticated;
+grant execute on function public.hive_directory() to authenticated;

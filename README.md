@@ -4,9 +4,9 @@ A shared hive-records site for club members. Each member logs their own apiaries
 inspections, **mite counts**, treatments, feedings and harvests from a phone or computer.
 The club gets combined statistics without anyone's hive locations or names being shared.
 
-- **Members** see and edit only their own records.
-- **Club admins** approve new members and can view (but not change) everyone's records.
-- **Club page** shows totals for every member: active hives, honey harvested, colonies lost,
+- **Members** see and edit their own records, and can opt in to let other members view their hives.
+- **Club admins** approve new members and can view (but not change) everyone's hives on the **Club hives** page.
+- **Club stats** shows totals for every member: active hives, honey harvested, colonies lost,
   hives by town and type, and the club's average mite load by month against the 3-per-100
   treatment threshold.
 - **Reminders** on each hive: inspection due, mite check due, mites over threshold,
@@ -77,10 +77,13 @@ All rules live in the database ([`supabase/schema.sql`](supabase/schema.sql)), s
 no matter what the website code does:
 - New accounts are **pending** and can't read or write anything until approved.
 - Only admins can change someone's approval or admin status. Members can't approve themselves.
-- Every apiary, hive and record belongs to one member. Others can't see, attach records to,
-  edit or delete it.
-- Admins can read all records (to help members and answer club questions) but can't edit them.
-- The Club page uses one database function, `club_stats()`, that returns only totals.
+- Every apiary, hive and record belongs to one member, and only that member can add, edit or delete it.
+- **Sharing is opt-in.** A member can tick "Let other members view my hives and records" on the
+  **Account** page. Their hives then appear on **Club hives** for other approved members, view-only,
+  with the town but never the apiary's name, location or notes. Unticking hides them again right away.
+- Admins can view every member's hives on **Club hives** (to help members and answer club
+  questions), marked "not shared" where the member hasn't opted in. Admins can't edit them.
+- The **Club stats** page uses one database function, `club_stats()`, that returns only totals.
 
 ## Changing things
 - **Club name / Supabase keys**: [`js/config.js`](js/config.js)
