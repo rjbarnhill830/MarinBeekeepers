@@ -82,7 +82,7 @@ create table if not exists public.mite_counts (
   hive_id       uuid not null references public.hives (id) on delete cascade,
   counted_on    date not null default current_date,
   method        text not null
-                check (method in ('alcohol wash', 'sugar roll', 'CO2', 'sticky board')),
+                check (method in ('alcohol wash', 'dish soap wash', 'sugar roll', 'CO2', 'sticky board')),
   bees_sampled  int check (bees_sampled > 0),   -- wash/roll/CO2: usually ~300 (½ cup)
   mites         int not null check (mites >= 0),
   board_days    int check (board_days > 0),     -- sticky board: days in place
@@ -137,6 +137,10 @@ alter table public.inspections add column if not exists temp_f numeric(5, 1);
 alter table public.inspections add column if not exists humidity int check (humidity between 0 and 100);
 alter table public.inspections add column if not exists wind_mph numeric(5, 1) check (wind_mph >= 0);
 alter table public.inspections add column if not exists conditions text;
+-- Allowed mite-count methods (re-created so new methods reach existing databases).
+alter table public.mite_counts drop constraint if exists mite_counts_method_check;
+alter table public.mite_counts add constraint mite_counts_method_check
+  check (method in ('alcohol wash', 'dish soap wash', 'sugar roll', 'CO2', 'sticky board'));
 
 create index if not exists apiaries_owner_idx    on public.apiaries (owner_id);
 create index if not exists hives_owner_idx       on public.hives (owner_id);

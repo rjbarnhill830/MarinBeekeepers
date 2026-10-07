@@ -96,7 +96,7 @@ export const RECORD_TYPES = {
     fields: [
       { name: 'counted_on', label: 'Date', type: 'date', required: true, default: 'today' },
       { name: 'method', label: 'Method', type: 'select', required: true, default: 'alcohol wash',
-        options: ['alcohol wash', 'sugar roll', 'CO2', 'sticky board'] },
+        options: ['alcohol wash', 'dish soap wash', 'sugar roll', 'CO2', 'sticky board'] },
       { name: 'bees_sampled', label: 'Bees sampled', type: 'number', min: 1, default: 300,
         help: '½ cup of bees ≈ 300. Not used for sticky boards.' },
       { name: 'mites', label: 'Mites counted', type: 'number', min: 0, required: true },
