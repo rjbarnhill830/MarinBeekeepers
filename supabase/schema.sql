@@ -400,3 +400,6 @@ grant execute on function public.is_approved() to authenticated;
 grant execute on function public.is_admin() to authenticated;
 grant execute on function public.can_view(uuid) to authenticated;
 grant execute on function public.hive_directory() to authenticated;
+
+-- Tell Supabase's API to pick up new tables, columns and functions straight away.
+notify pgrst, 'reload schema';
