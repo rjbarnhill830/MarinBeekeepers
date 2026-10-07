@@ -1,0 +1,48 @@
+# Applies supabase/schema.sql to the club's Supabase database whenever it changes on main.
+# The schema is written to be safe to re-run, and it runs as one transaction: if anything
+# fails, nothing is changed and this workflow shows a red ✗ with the error.
+#
+# One-time setup: add a repository secret named SUPABASE_DB_URL (see README → "Automatic
+# database updates"). You can also run it by hand from the Actions tab → Update database.
+
+name: Update database
+
+on:
+  push:
+    branches: [main]
+    paths: [supabase/schema.sql]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-database
+  cancel-in-progress: false
+
+jobs:
+  apply-schema:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the database secret is set
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::error::The SUPABASE_DB_URL secret isn't set. See README → Automatic database updates."
+            exit 1
+          fi
+
+      - name: Apply supabase/schema.sql
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          PGOPTIONS: -c client_min_messages=warning
+          PGCONNECT_TIMEOUT: "20"
+        run: |
+          command -v psql >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client; }
+          psql "$SUPABASE_DB_URL" --no-psqlrc --quiet --single-transaction \
+               -v ON_ERROR_STOP=1 -f supabase/schema.sql
+          echo "Database is up to date with supabase/schema.sql."

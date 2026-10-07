@@ -27,7 +27,8 @@ It's a static website (plain HTML/CSS/JavaScript, no build step) backed by
 1. Sign up at [supabase.com](https://supabase.com) (ideally with a shared club email so
    it isn't tied to one volunteer) and create a **new project**. The free plan is enough.
 2. In the project, open **SQL Editor → New query**, paste the whole of
-   [`supabase/schema.sql`](supabase/schema.sql), and click **Run**.
+   [`supabase/schema.sql`](supabase/schema.sql), and click **Run**. (After that, set up
+   [automatic database updates](#automatic-database-updates) so later changes apply themselves.)
 3. Open **Project Settings → API** (or **API Keys**) and copy:
    - the **Project URL** (`https://xxxx.supabase.co`)
    - the **anon / publishable** key (never the `service_role` / secret key)
@@ -60,6 +61,29 @@ Without this, the links in sign-up confirmation and password-reset emails point 
 Add a link to the site URL on the Marin Beekeepers webpage, e.g. "Marin Hive Tracker (member hive records)".
 New members sign up there, and an admin approves them from the **Members** tab.
 
+## Automatic database updates
+A GitHub Action ([`.github/workflows/update-database.yml`](.github/workflows/update-database.yml))
+runs `supabase/schema.sql` against Supabase every time that file changes on `main`, so you never
+need to copy and paste it. It runs as a single transaction: if anything fails, nothing changes
+and the run shows a red ✗ on the repo's **Actions** tab with the error.
+
+One-time setup:
+1. **Get the connection string.** In Supabase, click **Connect** at the top of the project.
+   Under **Session pooler**, copy the URI. It looks like
+   `postgresql://postgres.qjffbgmcdyemieutxaae:[YOUR-PASSWORD]@aws-0-us-west-1.pooler.supabase.com:5432/postgres`.
+   Use the session pooler, not the "Direct connection": GitHub's servers can't reach the direct one.
+2. **Put in your database password** in place of `[YOUR-PASSWORD]`, without the brackets. This is
+   the password you chose when creating the project, not your Supabase login. If you don't
+   know it, reset it under **Project Settings → Database**. If the password contains `@`, `:`,
+   `/` or `#`, reset it to one with only letters and numbers to avoid connection-string problems.
+3. **Save it as a GitHub secret.** In this repo: **Settings → Secrets and variables → Actions →
+   New repository secret**. Name: `SUPABASE_DB_URL`. Secret: the full connection string.
+4. **Test it.** Go to **Actions → Update database → Run workflow**. A green ✓ after a minute
+   means it's connected and the database is up to date.
+
+Keep this secret private. It gives full access to the database, so never paste it anywhere else
+(including chats). GitHub keeps it encrypted and never shows it in logs.
+
 ## Things to know about the free Supabase plan
 - **Emails**: Supabase's built-in email sender is rate-limited and meant for light use.
   If lots of members sign up at once (say, after a meeting), confirmation emails may be delayed.
@@ -91,10 +115,10 @@ no matter what the website code does:
   [`js/records.js`](js/records.js)
 - **Pages and behaviour**: [`js/app.js`](js/app.js)
 - **Colours and layout**: [`css/styles.css`](css/styles.css)
-- **Database changes**: `supabase/schema.sql` is safe to re-run; it never deletes data. It
-  won't add columns to tables that already exist, though. To add a field, run
-  `alter table public.inspections add column if not exists weather text;` (for example) in the
-  SQL Editor, add the same line to `schema.sql`, and add the field to `js/records.js`.
+- **Database changes**: edit `supabase/schema.sql`. Once automatic updates are set up (below),
+  pushing it to `main` applies it to Supabase. The file is safe to re-run and never deletes data.
+  To add a field to an existing table, add an `alter table ... add column if not exists ...` line
+  near the other ones in `schema.sql`, then add the field to `js/records.js`.
 
 To preview locally, serve the folder with any static server (for example
 `npx http-server .`) and open it in a browser. ES modules don't load from `file://` URLs.

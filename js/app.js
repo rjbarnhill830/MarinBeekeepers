@@ -864,7 +864,8 @@ async function route() {
     const outdated = /(column|relation|function) .* does not exist|schema cache/i.test(e.message);
     render(`<div class="card"><p class="error">Something went wrong: ${esc(e.message)}</p>
       ${outdated ? `<p>The database needs updating for the latest version of the site. A club admin should
-        run <code>supabase/schema.sql</code> again in the Supabase SQL Editor (see the README).</p>` : ''}
+        run the <b>Update database</b> workflow on GitHub (Actions tab), or run <code>supabase/schema.sql</code>
+        in the Supabase SQL Editor (see the README).</p>` : ''}
       <button onclick="location.reload()">Reload</button></div>`);
   }
 }
