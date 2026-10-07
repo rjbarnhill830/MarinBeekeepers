@@ -676,7 +676,7 @@ async function clubView(year = new Date().getFullYear()) {
     </div>
     <section class="card">
       <h2>Average mite load by month, ${year}</h2>
-      <p class="muted">Mites per 100 bees from alcohol washes, sugar rolls and CO₂ tests.</p>
+      <p class="muted">Mites per 100 bees from alcohol and dish soap washes, sugar rolls and CO₂ tests.</p>
       ${mites.length ? `${miteChart(mites)}
         <details><summary>Show as table</summary>
           <table class="table"><thead><tr><th>Month</th><th class="num">Samples</th><th class="num">Avg per 100</th><th class="num">At/above ${MITE_TREAT}</th></tr></thead>
