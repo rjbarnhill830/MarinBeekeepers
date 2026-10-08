@@ -1,7 +1,7 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-import { SUPABASE_URL, SUPABASE_ANON_KEY, CLUB_NAME } from './config.js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY, CLUB_NAME, RENEW_URL, DONATE_URL } from './config.js';
 import {
-  APIARY_FIELDS, RECORD_TYPES, MITE_TREAT, hiveFields, hiveAlerts, miteRate,
+  APIARY_FIELDS, RECORD_TYPES, MITE_TREAT, hiveFields, hiveAlerts, miteRate, membershipStatus,
   fmtDate, fmtTime, nowHHMM, todayISO,
 } from './records.js';
 import { weatherAt } from './weather.js';
@@ -55,6 +55,28 @@ function alertList(alerts) {
   return `<ul class="alerts">${alerts.map(a =>
     `<li class="alert ${a.level}"><span aria-hidden="true">${
       { bad: '●', warn: '▲', info: 'ℹ' }[a.level]}</span> ${esc(a.text)}</li>`).join('')}</ul>`;
+}
+
+function statusBadge(paidThrough) {
+  const s = membershipStatus(paidThrough);
+  return `<span class="badge status-${s.level}">${s.label}</span>`;
+}
+
+const renewLink = (text = 'Renew your membership') =>
+  RENEW_URL ? ` <a href="${esc(RENEW_URL)}" target="_blank" rel="noopener">${text}</a>.` : ' Contact a club admin to renew.';
+
+// Renewal reminder for the signed-in member (expiring soon or expired), or ''.
+function renewalNotice() {
+  const s = membershipStatus(state.profile?.paid_through);
+  if (s.key === 'expiring') {
+    return `<p class="alert warn renewal"><span aria-hidden="true">▲</span> Your ${esc(CLUB_NAME)} membership ${
+      s.left === 0 ? 'expires today' : `expires in ${s.left} day${s.left === 1 ? '' : 's'}`} (${fmtDate(state.profile.paid_through)}).${renewLink()}</p>`;
+  }
+  if (s.key === 'expired') {
+    return `<p class="alert bad renewal"><span aria-hidden="true">●</span> Your ${esc(CLUB_NAME)} membership expired on ${
+      fmtDate(state.profile.paid_through)}.${renewLink('Renew now')}</p>`;
+  }
+  return '';
 }
 
 // ---------------------------------------------------------------------------
@@ -427,6 +449,7 @@ async function dashboardView() {
       <h1>My hives</h1>
       <button id="add-hive">+ Add hive</button>
     </div>
+    ${renewalNotice()}
     ${!hives.length ? `
       <div class="card empty">
         <p>No hives yet. Start by adding an <a href="#/apiaries">apiary</a> (where your hives live), then add your hives.</p>
@@ -708,6 +731,9 @@ async function adminView() {
     <td>${esc(p.full_name || '—')}${p.role === 'admin' ? ' <span class="badge">admin</span>' : ''}</td>
     <td>${esc(p.email)}</td>
     <td class="num">${p.approved ? hiveCount(p.id) : ''}</td>
+    ${p.approved ? `<td class="paid"><input type="date" class="paid-input" data-id="${p.id}"
+        value="${esc(p.paid_through ?? '')}" aria-label="Paid through for ${esc(p.full_name || p.email)}">
+      ${statusBadge(p.paid_through)}</td>` : ''}
     <td class="actions">${p.approved
       ? (p.id === uid() ? '<span class="muted">you</span>' : `
         <button class="small secondary" data-act="${p.role === 'admin' ? 'demote' : 'promote'}" data-id="${p.id}">${p.role === 'admin' ? 'Remove admin' : 'Make admin'}</button>
@@ -724,10 +750,23 @@ async function adminView() {
     </section>
     <section class="card">
       <h2>Approved members (${members.length})</h2>
-      <table class="table"><thead><tr><th>Name</th><th>Email</th><th class="num">Hives</th><th></th></tr></thead>
-        <tbody>${members.map(row).join('')}</tbody></table>
+      <p class="muted">${[['active', 'active'], ['expiring', 'due to renew'], ['expired', 'expired'], ['unknown', 'with no date']]
+        .map(([k, label]) => [members.filter(m => membershipStatus(m.paid_through).key === k).length, label])
+        .filter(([n]) => n).map(([n, label]) => `${n} ${label}`).join(' · ')}.
+        Set each member's <b>Paid through</b> date when they pay dues; it saves as soon as you pick a date.</p>
+      <div class="table-scroll"><table class="table"><thead><tr><th>Name</th><th>Email</th><th class="num">Hives</th><th>Paid through</th><th></th></tr></thead>
+        <tbody>${members.map(row).join('')}</tbody></table></div>
     </section>
   `);
+  on('.paid-input', 'change', async e => {
+    const { id } = e.target.dataset;
+    try {
+      await must(sb.from('profiles').update({ paid_through: e.target.value || null }).eq('id', id));
+      if (id === uid()) state.profile.paid_through = e.target.value || null;
+      e.target.nextElementSibling.outerHTML = statusBadge(e.target.value || null);
+      toast('Paid-through date saved');
+    } catch (ex) { alert(ex.message); adminView(); }
+  });
   const changes = {
     approve: { approved: true }, revoke: { approved: false, role: 'member' },
     promote: { role: 'admin' }, demote: { role: 'member' },
@@ -757,6 +796,22 @@ async function accountView() {
   const p = state.profile;
   render(`
     <h1>Account</h1>
+    ${renewalNotice()}
+    <section class="card">
+      <h2>Membership</h2>
+      <dl class="facts membership">
+        <div><dt>Member status</dt><dd>${statusBadge(p.paid_through)}</dd></div>
+        <div><dt>Paid through</dt><dd>${p.paid_through ? fmtDate(p.paid_through) : '—'}</dd></div>
+      </dl>
+      <p class="muted">${p.paid_through ? 'Club admins update this date when your dues are received.'
+        : 'Your dues date hasn\'t been recorded yet. A club admin will add it.'}${
+        RENEW_URL ? ` <a href="${esc(RENEW_URL)}" target="_blank" rel="noopener">Membership &amp; dues</a>` : ''}</p>
+    </section>
+    ${DONATE_URL ? `<section class="card">
+      <h2>Support ${esc(CLUB_NAME)}</h2>
+      <p>Donations help fund club programs, education and swarm rescue.</p>
+      <a class="button-link" href="${esc(DONATE_URL)}" target="_blank" rel="noopener">Donate</a>
+    </section>` : ''}
     <section class="card">
       <form id="name-form" class="stack">
         <label>Name <input name="full_name" value="${esc(p.full_name)}" required></label>
@@ -836,6 +891,9 @@ async function loadProfile() {
 
 function setChrome(signedIn) {
   document.getElementById('topbar').hidden = !signedIn;
+  const footer = document.getElementById('footer');
+  footer.hidden = !DONATE_URL;
+  if (DONATE_URL) footer.innerHTML = `🐝 <a href="${esc(DONATE_URL)}" target="_blank" rel="noopener">Donate to ${esc(CLUB_NAME)}</a>`;
   document.getElementById('nav-admin').hidden = !isAdmin();
   const path = location.hash.split('/')[1] || '';
   document.querySelectorAll('#nav a').forEach(a => {

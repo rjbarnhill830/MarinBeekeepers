@@ -6,3 +6,7 @@ export const SUPABASE_URL = 'https://qjffbgmcdyemieutxaae.supabase.co';
 export const SUPABASE_ANON_KEY = 'sb_publishable_C_JQa9bYXGHzz_KnTGJJGw_shF9VqWN';
 
 export const CLUB_NAME = 'Marin Beekeepers';
+
+// Links shown in the app. Leave a link empty ('') to hide it.
+export const RENEW_URL = '';    // where members pay dues, e.g. the club's membership page
+export const DONATE_URL = '';   // the club's donation page

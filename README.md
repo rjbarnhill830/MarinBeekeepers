@@ -12,6 +12,12 @@ The club gets combined statistics without anyone's hive locations or names being
 - **Reminders** on each hive: inspection due, mite check due, mites over threshold,
   no queen/eggs seen, queen cells, treatment in progress.
 - **Export**: members can download their records as CSV spreadsheets.
+- **Membership dues**: admins set each member's **Paid through** date on the **Members** page.
+  Members see their status (Active, Renewal due, Expired) on the **Account** page, plus a reminder
+  on **My hives** starting 30 days before it runs out. Only admins can change the date.
+- **Donate / renew links**: set `DONATE_URL` and `RENEW_URL` in [`js/config.js`](js/config.js).
+  The donate link appears at the bottom of every page and on the Account page. Leave either one
+  empty to hide it.
 - **Weather**: inspections record the time of day, and the temperature, conditions, wind and
   humidity fill in automatically from [Open-Meteo](https://open-meteo.com). It's free for
   non-commercial use and needs no API key or setup. Weather is looked up by the apiary's
@@ -110,8 +116,8 @@ no matter what the website code does:
 - The **Club stats** page uses one database function, `club_stats()`, that returns only totals.
 
 ## Changing things
-- **Club name / Supabase keys**: [`js/config.js`](js/config.js)
-- **Form fields, treatment and feed suggestions, mite thresholds, reminder timing**:
+- **Club name, Supabase keys, donate and renewal links**: [`js/config.js`](js/config.js)
+- **Form fields, treatment and feed suggestions, mite thresholds, reminder timing (incl. dues reminder)**:
   [`js/records.js`](js/records.js)
 - **Pages and behaviour**: [`js/app.js`](js/app.js)
 - **Colours and layout**: [`css/styles.css`](css/styles.css)

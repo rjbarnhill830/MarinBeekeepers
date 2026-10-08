@@ -23,6 +23,7 @@ create table if not exists public.profiles (
   role        text not null default 'member' check (role in ('member', 'admin')),
   approved    boolean not null default false,
   share_hives boolean not null default false,  -- opt in: other members may view my hives
+  paid_through date,                           -- dues paid through this date (set by admins)
   created_at  timestamptz not null default now()
 );
 
@@ -131,6 +132,7 @@ create table if not exists public.harvests (
 
 -- Columns added after the first release (create table above won't add them to existing tables).
 alter table public.profiles add column if not exists share_hives boolean not null default false;
+alter table public.profiles add column if not exists paid_through date;
 alter table public.hives add column if not exists bee_species text;
 alter table public.inspections add column if not exists inspected_at time;
 alter table public.inspections add column if not exists temp_f numeric(5, 1);
@@ -203,12 +205,13 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- Members may rename themselves, but only admins may change role/approval.
+-- Members may rename themselves, but only admins may change role/approval/dues.
 -- The SQL editor (no auth.uid()) is allowed so the first admin can be bootstrapped.
 create or replace function public.guard_profile_update() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
   if (new.role is distinct from old.role or new.approved is distinct from old.approved
+      or new.paid_through is distinct from old.paid_through
       or new.email is distinct from old.email or new.id is distinct from old.id)
      and auth.uid() is not null and not public.is_admin() then
     raise exception 'Only club admins can change membership status';

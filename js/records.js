@@ -18,6 +18,9 @@ export const HIVE_STATUSES = ['active', 'dead', 'swarmed', 'combined', 'sold'];
 export const MITE_WARN = 2;
 export const MITE_TREAT = 3;
 
+// Start reminding members this many days before their membership runs out.
+export const RENEW_WARN_DAYS = 30;
+
 export const APIARY_FIELDS = [
   { name: 'name', label: 'Name', required: true, placeholder: 'Backyard' },
   { name: 'town', label: 'Town', placeholder: 'San Anselmo',
@@ -210,6 +213,15 @@ export function fmtDate(iso) {
   if (!iso) return '';
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// Membership status from the paid-through date (set by admins).
+export function membershipStatus(paidThrough) {
+  if (!paidThrough) return { key: 'unknown', label: 'Not recorded', level: 'muted' };
+  const left = -daysSince(paidThrough);   // days remaining; negative once expired
+  if (left < 0) return { key: 'expired', label: 'Expired', level: 'bad', left };
+  if (left <= RENEW_WARN_DAYS) return { key: 'expiring', label: 'Renewal due', level: 'warn', left };
+  return { key: 'active', label: 'Active', level: 'good', left };
 }
 
 // Reminders shown on the dashboard for an active hive.

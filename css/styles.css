@@ -122,6 +122,20 @@ a.card:hover, button.card:hover { border-color: var(--accent); }
   border-radius: 999px; background: var(--accent-soft); color: var(--text); vertical-align: middle;
 }
 .muted-badge { background: var(--surface-2); color: var(--text-2); }
+.status-good { background: color-mix(in srgb, var(--good) 18%, transparent); }
+.status-warn { background: var(--warn-bg); }
+.status-bad { background: var(--bad-bg); }
+.status-muted { background: var(--surface-2); color: var(--text-2); }
+.renewal { margin: 0 0 1rem; }
+.facts.membership { margin-bottom: .6rem; }
+.table-scroll { overflow-x: auto; }
+.table td.paid { white-space: nowrap; }
+.paid-input { display: inline-block; width: auto; min-height: 2rem; padding: .2rem .4rem; margin: 0 .3rem 0 0; }
+.button-link {
+  display: inline-block; background: var(--accent); color: var(--accent-ink); font-weight: 600;
+  text-decoration: none; border-radius: 8px; padding: .5rem .9rem;
+}
+.footer { text-align: center; padding: 0 16px 2.5rem; color: var(--text-2); font-size: .9rem; }
 .hive-notes { white-space: pre-wrap; background: var(--surface); border-left: 3px solid var(--accent); padding: .5rem .8rem; border-radius: 4px; }
 
 /* Alerts */
